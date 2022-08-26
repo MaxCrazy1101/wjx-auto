@@ -1,11 +1,11 @@
 import functools
+from logging import log, debug
 from playwright.async_api import async_playwright, Playwright, Browser, Page, Locator
 import asyncio
 import random
 from typing import List
-# 代理IP地址
-proxyUrl = ''
-url = ''
+
+from .config import *
 
 
 def indent():
@@ -18,7 +18,7 @@ js = """
 conf = [{"num": 1, "cart": "dx", "bili": [50, 50]},
         {"num": 2, "cart": "dx", "bili": [15, 25, 35, 25]},
         {"num": 3, "cart": "dx", "bili": [30, 70]},
-        {"num": 4, "cart": "dx", "bili": [5, 30, 25, 25, 10.5]},
+        {"num": 4, "cart": "dx", "bili": [15, 30, 30, 15, 5, 5]},
         {"num": 5, "cart": "dx", "bili": [25, 35, 25, 15]},
         {"num": 6, "cart": "dx", "bili": [25, 35, 27, 13]},
         {"num": 7, "cart": "dx", "bili": [40, 55, 5]},
@@ -38,28 +38,6 @@ conf = [{"num": 1, "cart": "dx", "bili": [50, 50]},
         ]
 
 
-async def run(playwright: Playwright) -> None:
-    browser = await playwright.chromium.launch(headless=False)
-    context = await browser.new_context()
-    # Open new page
-    page = await context.new_page()
-    # Go to https://www.wjx.cn/vm/rpz1PCn.aspx
-    await page.goto("https://www.wjx.cn/vm/rpz1PCn.aspx")
-    # Click #fieldset1 div:has-text("选项2") >> nth=2
-    await page.locator("#fieldset1 div:has-text(\"选项2\")").nth(2).click()
-    # Click #fieldset1 div:has-text("选项4") >> nth=2
-    await page.locator("#fieldset1 div:has-text(\"选项4\")").nth(2).click()
-    # Click text=提交
-    await page.locator("text=提交").click()
-    # Click text=确认
-    await page.locator("text=确认").click()
-    # Click .sm-ico-wave
-    await page.locator(".sm-ico-wave").click()
-    # ---------------------
-    await context.close()
-    await browser.close()
-
-
 async def main():
     async with async_playwright() as p:
         # iphone_11 = p.devices['iPhone 11 Pro']
@@ -75,20 +53,6 @@ async def main():
         while n:
             await sim_bro(p)
             n -= 1
-
-
-def handle_exception(method):
-    """
-    异步装饰器装饰异步方法
-    :param method: 被装饰协程（异步方法）
-    :return:
-    """
-    @functools.wraps(method)
-    async def wrapper(*args, **kwargs):
-        print(f'装饰器装饰{__name__}方法')
-        # 此处必须await 切换调用被装饰协程，否则不会运行该协程
-        await method(*args, **kwargs)
-    return wrapper
 
 
 def wrapper_sam(sam: asyncio.Semaphore):
@@ -109,35 +73,33 @@ async def sim_bro(p: "Playwright"):
     # print(proxyIp)
     # ,proxy={"server": "http://39.105.95.187:443"47.112.167.85:80, }
     # proxy_list=["222.249.173.24:84","39.105.95.187:443","47.112.167.85:80"]
-    # , proxy={"server": f"http://{random.choice(proxy_list)}", }
-    browser = await p.chromium.launch(headless=False)
-    task = []
-    for i in range(20):
-        task.append(asyncio.create_task(sim_page(await browser.new_context())))
-    await asyncio.gather(*task)
-    await browser.close()
+    # , proxy={"server": f"http://130.41.41.175:8080", }
+    async with await p.chromium.launch(headless=False) as browser:
+        task = []
+        for i in range(20):
+            task.append(asyncio.create_task(sim_page(await browser.new_context())))
+        await asyncio.gather(*task)
 
 
-sam = asyncio.Semaphore(4)
+sam = asyncio.Semaphore(10)
 
 
 @wrapper_sam(sam)
 async def sim_page(b: "Browser"):
-    page = await b.new_page()
-    await page.add_init_script(js)
-    await page.goto(url, timeout=100000)
+    async with await b.new_page() as page:
+        await page.add_init_script(js)
+        await page.goto(url, timeout=100000)
 
-    # 处理问题
-    for cart in conf:
-        locator = page.locator(f"#div{cart['num']}")
-        # print(cart['num'])
-        if cart["cart"] == "dx":
-            await danxuan(locator, cart["bili"])
-        else:
-            await duoxuan(locator, cart["bili"])
-    # 过验证
-    await pass_check(page)
-    await page.close()
+        # 处理问题
+        for cart in conf:
+            locator = page.locator(f"#div{cart['num']}")
+            # print(cart['num'])
+            if cart["cart"] == "dx":
+                await danxuan(locator, cart["bili"])
+            else:
+                await duoxuan(locator, cart["bili"])
+        # 过验证
+        await pass_check(page)
 
 
 async def danxuan(part: "Locator", bili: "List"):
@@ -168,18 +130,15 @@ async def duoxuan(part: "Locator", bili: "List"):
 
 async def pass_check(page: "Page"):
     await page.locator("#ctlNext").click()
-    try:
-        await asyncio.sleep(4)
-        if page.url != url:
-            return
-        dom = await page.content()
-        if '点击按钮开始智能验证' in dom:
-            try:
-                await page.locator("text=确认").click()
-            except:
-                pass
-            await page.locator("#SM_TXT_1").click(force=True)
-            await asyncio.sleep(4)
+    await asyncio.sleep(4)
+    if page.url != url:
+        return
+    if await page.locator("#alert_box").count() != 0:
+        debug("智能验证对话框")
+        await page.locator("text=确认").click()
+
+    await page.locator("#SM_TXT_1").click(force=True)
+    await asyncio.sleep(4)
     #         while True:
     #             dom = await page.content()
     #             if '点击按钮开始智能验证' in dom:
@@ -187,21 +146,18 @@ async def pass_check(page: "Page"):
     #                 await asyncio.sleep(4)
     #             else:
     #                 break
-    #         dom = await page.content()
-    #         if '请按住滑块，拖动到最右边' in dom:
-    #             btn = page.locator("#nc_1_n1z")
-    #             await page.drag_and_drop(btn, btn, force=True,
-    #                                      target_position={"x": 400, "y": 0})
-    #             await asyncio.sleep(2)
-    #             dom = await page.content()
-    #             if '哎呀，出错了，点击' in dom:
-    #                 await page.locator("#nc_1_refresh1").click()
-    #                 btn = page.locator("#nc_1_n1z")
-    #                 await page.drag_and_drop(btn, btn, force=True,
-    #                                          target_position={"x": 400, "y": 0})
-    #                 await asyncio.sleep(2)
-    except:
-        pass
+    if await page.locator("#SM_POP_1").count() != 0:
+        debug("发现滑块")
+        selector = "#nc_1_n1z"
+        await page.drag_and_drop(selector, selector, force=True,
+                                 target_position={"x": 400, "y": 0})
+        await asyncio.sleep(2)
+        if await page.locator("#SM_POP_1").count() != 0:
+            debug("滑块失败，重试")
+            await page.locator("#nc_1_refresh1").click()
+            await page.drag_and_drop(selector, selector, force=True,
+                                     target_position={"x": 400, "y": 0})
+            await asyncio.sleep(2)
 
 
 if __name__ == "__main__":
