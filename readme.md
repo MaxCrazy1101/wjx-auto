@@ -3,6 +3,13 @@
 ## 如何安装？
 
 
+
+需要安装 `Playwright` 库
+
+```
+playwright install
+```
+
 ## 如何运行？
 
 ```

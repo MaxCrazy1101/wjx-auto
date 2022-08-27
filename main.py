@@ -5,7 +5,7 @@ import asyncio
 import random
 from typing import List
 
-from .config import *
+from config import *
 
 
 def indent():
@@ -18,7 +18,7 @@ js = """
 conf = [{"num": 1, "cart": "dx", "bili": [50, 50]},
         {"num": 2, "cart": "dx", "bili": [15, 25, 35, 25]},
         {"num": 3, "cart": "dx", "bili": [30, 70]},
-        {"num": 4, "cart": "dx", "bili": [15, 30, 30, 15, 5, 5]},
+        {"num": 4, "cart": "dx", "bili": [15, 30, 33, 15, 2, 5]},
         {"num": 5, "cart": "dx", "bili": [25, 35, 25, 15]},
         {"num": 6, "cart": "dx", "bili": [25, 35, 27, 13]},
         {"num": 7, "cart": "dx", "bili": [40, 55, 5]},
@@ -63,7 +63,7 @@ def wrapper_sam(sam: asyncio.Semaphore):
                 try:
                     await func(*args, **kwargs)
                 except Exception as e:
-                    print(e.args)
+                    print(e)
         return inner
     return wrapper
 
@@ -74,6 +74,9 @@ async def sim_bro(p: "Playwright"):
     # ,proxy={"server": "http://39.105.95.187:443"47.112.167.85:80, }
     # proxy_list=["222.249.173.24:84","39.105.95.187:443","47.112.167.85:80"]
     # , proxy={"server": f"http://130.41.41.175:8080", }
+    # if proxyUrl is not None:
+    #     proxyIp = requests.get(proxyUrl).json()["proxy"]
+    #     proxy={"server": f"http://{proxyIp}"}
     async with await p.chromium.launch(headless=False) as browser:
         task = []
         for i in range(20):
@@ -88,7 +91,7 @@ sam = asyncio.Semaphore(10)
 async def sim_page(b: "Browser"):
     async with await b.new_page() as page:
         await page.add_init_script(js)
-        await page.goto(url, timeout=100000)
+        await page.goto(url)
 
         # 处理问题
         for cart in conf:
